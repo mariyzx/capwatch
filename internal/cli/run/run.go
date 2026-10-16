@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +18,7 @@ import (
 
 	"github.com/mariyzx/capwatch/internal/config"
 	"github.com/mariyzx/capwatch/internal/hunt"
+	"github.com/mariyzx/capwatch/internal/notify"
 	"github.com/mariyzx/capwatch/internal/oci"
 )
 
@@ -34,6 +37,7 @@ type Options struct {
 	SubnetID      string        `koanf:"subnet"`
 	Interval      time.Duration `koanf:"interval"`
 	MaxBackoff    time.Duration `koanf:"max-backoff"`
+	NotifyURL     string        `koanf:"notify-url"`
 }
 
 func NewCmdRun() *cobra.Command {
@@ -69,6 +73,7 @@ func NewCmdRun() *cobra.Command {
 	flags.StringVar(&opts.SubnetID, "subnet", "", "subnet OCID (default: first subnet in the compartment)")
 	flags.DurationVar(&opts.Interval, "interval", time.Minute, "wait between attempts")
 	flags.DurationVar(&opts.MaxBackoff, "max-backoff", 10*time.Minute, "longest wait when rate limited")
+	flags.StringVar(&opts.NotifyURL, "notify-url", "", "HTTPS URL that receives a POST when the instance is launched (e.g. https://ntfy.sh/<topic>)")
 
 	return cmd
 }
@@ -85,8 +90,15 @@ func (o Options) validate() error {
 		return fmt.Errorf("invalid --interval: must be at least %s", minInterval)
 	case o.MaxBackoff < o.Interval:
 		return errors.New("invalid --max-backoff: must not be shorter than --interval")
+	case o.NotifyURL != "" && !isHTTPS(o.NotifyURL):
+		return errors.New("invalid --notify-url: must be an https URL")
 	}
 	return nil
+}
+
+func isHTTPS(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	return err == nil && u.Scheme == "https" && u.Host != ""
 }
 
 func runRun(ctx context.Context, opts Options, out, errOut io.Writer) error {
@@ -138,6 +150,13 @@ func runRun(ctx context.Context, opts Options, out, errOut io.Writer) error {
 
 	fmt.Fprintln(errOut, "Instance launched. It may take a minute to boot and get a public IP.")
 	fmt.Fprintln(out, instance.ID)
+
+	if opts.NotifyURL != "" {
+		message := fmt.Sprintf("capwatch: instance %q launched", opts.Name)
+		if err := notify.Send(ctx, http.DefaultClient, opts.NotifyURL, message); err != nil {
+			fmt.Fprintf(errOut, "Warning: %v\n", err)
+		}
+	}
 	return nil
 }
 

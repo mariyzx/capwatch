@@ -40,6 +40,10 @@ func TestValidate(t *testing.T) {
 		{"boot volume too small", func(o *Options) { o.BootVolumeGB = 20 }, true},
 		{"interval too short", func(o *Options) { o.Interval = 5 * time.Second }, true},
 		{"backoff shorter than interval", func(o *Options) { o.MaxBackoff = 30 * time.Second }, true},
+		{"https notify url", func(o *Options) { o.NotifyURL = "https://ntfy.sh/capwatch-test" }, false},
+		{"plain http notify url", func(o *Options) { o.NotifyURL = "http://ntfy.sh/capwatch-test" }, true},
+		{"notify url without host", func(o *Options) { o.NotifyURL = "https:///capwatch-test" }, true},
+		{"notify url without scheme", func(o *Options) { o.NotifyURL = "ntfy.sh/capwatch-test" }, true},
 	}
 
 	for _, tt := range tests {
