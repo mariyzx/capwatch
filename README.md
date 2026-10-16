@@ -132,6 +132,34 @@ tail -f ~/capwatch.log            # follow progress
 tmux kill-session -t capwatch     # stop it
 ```
 
+### Getting notified
+
+capwatch can send a `POST` to any HTTPS URL when the instance is launched.
+With [ntfy](https://ntfy.sh) you get a push notification on your phone, with
+no account needed:
+
+1. [Install the ntfy app](https://docs.ntfy.sh/subscribe/phone/) and
+   subscribe to a topic with a long random name:
+
+   ```bash
+   echo "capwatch-$(openssl rand -hex 12)"
+   ```
+
+2. Set it in the config file (or pass `--notify-url`):
+
+   ```toml
+   notify-url = "https://ntfy.sh/capwatch-<random>"
+   ```
+
+3. Check that it reaches your phone:
+
+   ```bash
+   curl -d "capwatch test" https://ntfy.sh/capwatch-<random>
+   ```
+
+The message only contains the instance name. If the notification fails,
+capwatch prints a warning and still exits with `0`.
+
 ### Connecting to the instance
 
 The instance takes a minute or two to boot. Get its public IP in the console
@@ -183,6 +211,7 @@ These settings are not secrets. OCI credentials stay in `~/.oci/config`.
 | `--subnet` | first subnet found | Subnet OCID |
 | `--interval` | `1m` | Wait between attempts, at least `30s` |
 | `--max-backoff` | `10m` | Longest wait when rate limited |
+| `--notify-url` | none | HTTPS URL that receives a `POST` when the instance is launched |
 
 The image is always the latest Ubuntu 22.04 for ARM. Smaller shapes tend to
 find capacity sooner.
@@ -234,6 +263,7 @@ internal/
 │   └── run/         # capwatch run
 ├── config/          # flags, environment and config file loading
 ├── hunt/            # retry and backoff policy, independent of OCI
+├── notify/          # launch notification over HTTPS
 └── oci/             # OCI SDK adapter: discovery, launch, error translation
 ```
 
@@ -260,6 +290,9 @@ go vet ./...
 - `--ssh-key` only accepts a valid public key, so a private key is never sent
   to the instance metadata by mistake.
 - The config file must not be writable by other users.
+- On public ntfy servers, anyone who knows the topic can read and send
+  messages to it. Treat the topic name like a password: make it long and
+  random, and keep it only in the config file.
 - Logs may contain OCIDs: create them with `umask 077`, as in the `tmux`
   example above.
 - Never commit `~/.oci/`, `.pem` files, SSH keys or log files. The
