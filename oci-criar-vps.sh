@@ -122,6 +122,10 @@ while true; do
   elif echo "$saida" | grep -qiE "TooManyRequests|429"; then
     echo "  Limite de requisições. Aguardando $((INTERVALO * 3))s..."
     sleep $((INTERVALO * 3))
+  elif echo "$saida" | grep -qiE "timed? ?out|timeout|connection|InternalError|ServiceUnavailable|\"status\": 50[0-9]"; then
+    echo "  Erro temporário (rede ou Oracle instável). Tentando de novo em ${INTERVALO}s..."
+    echo "$saida" | tail -n 3 | sed 's/^/    /'
+    sleep "$INTERVALO"
   else
     echo "  Erro diferente de falta de capacidade, parando:"
     echo "$saida"
