@@ -72,11 +72,40 @@ Getting capacity may take hours or days. Run it inside `tmux` so it survives
 closing the terminal:
 
 ```bash
-tmux new-session -d -s capwatch 'capwatch run 2>&1 | tee -a ~/capwatch.log'
+tmux new-session -d -s capwatch 'umask 077; capwatch run 2>&1 | tee -a ~/capwatch.log'
 tail -f ~/capwatch.log
 ```
 
-### Flags
+## Configuration
+
+Every setting can come from a flag, an environment variable or the config
+file, in this order of precedence:
+
+1. Flags: `--max-backoff 15m`
+2. Environment variables: `CAPWATCH_MAX_BACKOFF=15m`
+3. Config file: `~/.config/capwatch/config.toml` (or `$XDG_CONFIG_HOME/capwatch/config.toml`)
+4. Defaults
+
+The config file uses the flag names as keys:
+
+```toml
+ocpus = 4
+memory = 24
+interval = "2m"
+subnet = "ocid1.subnet.oc1.sa-saopaulo-1.<...>"
+```
+
+```bash
+chmod 600 ~/.config/capwatch/config.toml
+```
+
+capwatch refuses to start when the config file is writable by other users, or
+when the file or a `CAPWATCH_*` variable contains an unknown setting.
+
+These settings are not secrets. OCI credentials stay in `~/.oci/config` and
+are read only by the OCI SDK.
+
+### Settings
 
 | Flag | Default | Notes |
 |---|---|---|
@@ -92,12 +121,12 @@ tail -f ~/capwatch.log
 
 Smaller shapes tend to find capacity sooner.
 
-### Exit codes
+## Exit codes
 
 | Code | Meaning |
 |---|---|
 | `0` | Instance launched |
-| `1` | Unrecoverable error (authentication, quota, invalid flags...) |
+| `1` | Unrecoverable error (authentication, quota, invalid settings...) |
 | `130` | Interrupted with Ctrl+C |
 
 ## How it works
@@ -118,6 +147,7 @@ Smaller shapes tend to find capacity sooner.
 - [Go](https://go.dev)
 - [OCI Go SDK](https://github.com/oracle/oci-go-sdk)
 - [Cobra](https://github.com/spf13/cobra) + [Fang](https://github.com/charmbracelet/fang) for the CLI
+- [Koanf](https://github.com/knadh/koanf) for configuration
 
 ## Project layout
 
@@ -126,6 +156,7 @@ cmd/capwatch/        # entrypoint
 internal/
 ├── cli/             # cobra commands
 │   └── run/         # capwatch run
+├── config/          # flags, environment and config file loading
 ├── hunt/            # retry and backoff policy, independent of OCI
 └── oci/             # OCI SDK adapter: discovery, launch, error translation
 scripts/             # original Bash version
@@ -140,5 +171,13 @@ go vet ./...
 
 ## Security
 
-Never commit `~/.oci/`, `.pem` files, SSH keys or log files (they contain
-your tenancy and subnet OCIDs). The `.gitignore` covers these by default.
+- capwatch never reads or stores credentials: authentication is handled by
+  the OCI SDK from `~/.oci/config`. Keep that directory at `700` and its
+  files at `600`.
+- `--ssh-key` only accepts a valid public key, so a private key is never
+  sent to the instance metadata by mistake.
+- The config file must not be writable by other users.
+- Logs may contain OCIDs: create them with `umask 077`, as in the `tmux`
+  example above.
+- Never commit `~/.oci/`, `.pem` files, SSH keys or log files. The
+  `.gitignore` covers these by default.
