@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/mariyzx/capwatch/internal/hunt"
 	"github.com/mariyzx/capwatch/internal/oci"
@@ -81,9 +82,9 @@ func (o Options) validate() error {
 }
 
 func runRun(ctx context.Context, opts Options, out, errOut io.Writer) error {
-	sshKey, err := os.ReadFile(opts.SSHKeyPath)
+	sshKey, err := readPublicKey(opts.SSHKeyPath)
 	if err != nil {
-		return fmt.Errorf("reading ssh public key: %w", err)
+		return err
 	}
 
 	client, err := oci.NewClient()
@@ -111,7 +112,7 @@ func runRun(ctx context.Context, opts Options, out, errOut io.Writer) error {
 			MemoryGB:      opts.MemoryGB,
 			BootVolumeGB:  opts.BootVolumeGB,
 			DisplayName:   opts.Name,
-			SSHPublicKey:  strings.TrimSpace(string(sshKey)),
+			SSHPublicKey:  sshKey,
 		}),
 		Interval:   opts.Interval,
 		MaxBackoff: opts.MaxBackoff,
@@ -130,6 +131,17 @@ func runRun(ctx context.Context, opts Options, out, errOut io.Writer) error {
 	fmt.Fprintln(errOut, "Instance launched. It may take a minute to boot and get a public IP.")
 	fmt.Fprintln(out, instance.ID)
 	return nil
+}
+
+func readPublicKey(path string) (string, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("reading ssh public key: %w", err)
+	}
+	if _, _, _, _, err := ssh.ParseAuthorizedKey(content); err != nil {
+		return "", fmt.Errorf("%s is not a public ssh key (did you pass the private key?)", path)
+	}
+	return strings.TrimSpace(string(content)), nil
 }
 
 func retryMessage(a hunt.Attempt) string {

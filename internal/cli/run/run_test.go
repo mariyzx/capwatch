@@ -1,10 +1,17 @@
 package run
 
 import (
+	"crypto/ed25519"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	"golang.org/x/crypto/ssh"
 
 	"github.com/mariyzx/capwatch/internal/hunt"
 )
@@ -45,6 +52,63 @@ func TestValidate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func writeKeyFiles(t *testing.T) (publicPath, privatePath string) {
+	t.Helper()
+	public, private, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sshPublic, err := ssh.NewPublicKey(public)
+	if err != nil {
+		t.Fatal(err)
+	}
+	privatePEM, err := ssh.MarshalPrivateKey(private, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dir := t.TempDir()
+	publicPath = filepath.Join(dir, "id_ed25519.pub")
+	privatePath = filepath.Join(dir, "id_ed25519")
+	if err := os.WriteFile(publicPath, ssh.MarshalAuthorizedKey(sshPublic), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(privatePath, pem.EncodeToMemory(privatePEM), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return publicPath, privatePath
+}
+
+func TestReadPublicKey(t *testing.T) {
+	publicPath, privatePath := writeKeyFiles(t)
+
+	t.Run("public key", func(t *testing.T) {
+		key, err := readPublicKey(publicPath)
+		if err != nil {
+			t.Fatalf("readPublicKey() error = %v", err)
+		}
+		if !strings.HasPrefix(key, "ssh-ed25519 ") || strings.HasSuffix(key, "\n") {
+			t.Errorf("readPublicKey() = %q", key)
+		}
+	})
+
+	t.Run("private key", func(t *testing.T) {
+		_, err := readPublicKey(privatePath)
+		if err == nil {
+			t.Fatal("readPublicKey() accepted a private key")
+		}
+		if strings.Contains(err.Error(), "PRIVATE KEY") {
+			t.Errorf("error leaks the key content: %v", err)
+		}
+	})
+
+	t.Run("missing file", func(t *testing.T) {
+		if _, err := readPublicKey(filepath.Join(t.TempDir(), "missing.pub")); err == nil {
+			t.Fatal("readPublicKey() error = nil")
+		}
+	})
 }
 
 func TestRetryMessage(t *testing.T) {
