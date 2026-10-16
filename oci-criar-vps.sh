@@ -8,8 +8,8 @@
 set -u
 
 # ================== CONFIGURAÇÃO ==================
-OCPUS=1                      # comece pequeno: pedidos menores passam mais fácil
-MEMORY_GB=6
+OCPUS=2                      # free tier: até 4 OCPUs no total
+MEMORY_GB=16                 # free tier: até 24 GB no total
 BOOT_VOLUME_GB=50            # o free tier dá até 200 GB no total
 DISPLAY_NAME="minha-vps"
 SSH_PUBLIC_KEY_FILE="$HOME/.ssh/id_ed25519.pub"   # sua chave PÚBLICA
