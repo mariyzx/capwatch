@@ -138,24 +138,31 @@ capwatch can send a `POST` to any HTTPS URL when the instance is launched.
 With [ntfy](https://ntfy.sh) you get a push notification on your phone, with
 no account needed:
 
-1. [Install the ntfy app](https://docs.ntfy.sh/subscribe/phone/) and
-   subscribe to a topic with a long random name:
+1. Generate a topic name. It works like a password, so make it long and
+   random:
 
    ```bash
    echo "capwatch-$(openssl rand -hex 12)"
    ```
 
-2. Set it in the config file (or pass `--notify-url`):
+2. Install **ntfy** from the Play Store or the App Store
+   ([instructions](https://docs.ntfy.sh/subscribe/phone/)).
+3. In the app, tap **+**, paste the topic name, keep the default server
+   (`ntfy.sh`) and tap **Subscribe**. On Android, allow notifications and
+   disable battery optimization for ntfy, or alerts may be delayed.
+4. Set the topic URL in the config file (or pass `--notify-url`):
 
    ```toml
    notify-url = "https://ntfy.sh/capwatch-<random>"
    ```
 
-3. Check that it reaches your phone:
+5. Send a test message. It should reach your phone within a few seconds:
 
    ```bash
    curl -d "capwatch test" https://ntfy.sh/capwatch-<random>
    ```
+
+6. Restart capwatch so it picks up the new setting.
 
 The message only contains the instance name. If the notification fails,
 capwatch prints a warning and still exits with `0`.
