@@ -13,96 +13,132 @@ Capacity frees up at random moments, so the only reliable way to get an
 instance is to keep asking. capwatch does that for you, at a pace that stays
 well below the OCI API rate limits.
 
-> **Status:** the current version is a pair of Bash scripts. A Go CLI is in
-> progress and will replace them.
-
 ## Requirements
 
-- Linux or WSL 2 (tested on Ubuntu)
+- Go 1.27+ (to build)
 - An Oracle Cloud account (Free Tier is enough)
+- An OCI API key configured in `~/.oci/config`
 - A VCN with a public subnet in the target compartment
-  (Console → Networking → Virtual cloud networks → **Start VCN Wizard** →
-  *Create VCN with Internet Connectivity*)
-- `sudo` access, to install `curl`, `python3`, `python3-venv`, `tmux` and
-  `openssh-client`
+- An SSH key pair (default: `~/.ssh/id_ed25519.pub`)
 
-The setup script installs the [OCI CLI](https://docs.oracle.com/iaas/Content/API/SDKDocs/cliinstall.htm)
-and creates an SSH key if you don't have one.
+### Setting up the OCI API key
 
-## Quick start
+1. In the console, open *Profile menu → My profile → API keys → Add API key*.
+2. Choose **Generate API key pair**, download the private key and click **Add**.
+3. Copy the *Configuration file preview* into `~/.oci/config` and point
+   `key_file` to the downloaded key:
 
-```bash
-git clone <repo-url> capwatch
-cd capwatch
-./scripts/setup-oci-wsl.sh
+```ini
+[DEFAULT]
+user=ocid1.user.oc1..<...>
+fingerprint=<...>
+tenancy=ocid1.tenancy.oc1..<...>
+region=sa-saopaulo-1
+key_file=~/.oci/oci_api_key.pem
 ```
 
-The setup walks you through `oci setup config`. Have these at hand:
-
-| Prompt | Where to find it |
-|---|---|
-| User OCID | Profile menu → *My profile* → OCID |
-| Tenancy OCID | Profile menu → *Tenancy* → OCID |
-| Region | e.g. `sa-saopaulo-1` |
-
-Then upload the printed **public** API key under
-*My profile → API keys → Add API key*.
-
-Once the connection test passes, the retry loop starts inside a `tmux`
-session:
-
 ```bash
-tmux attach -t oci-vps          # watch it (detach with Ctrl+B, D)
-tail -f ~/oci-vps/log.txt       # or follow the log
-tmux kill-session -t oci-vps    # stop it
+chmod 600 ~/.oci/config ~/.oci/oci_api_key.pem
 ```
 
-When the instance is created, connect with:
+### Creating the network
+
+*Networking → Virtual cloud networks → Start VCN Wizard → Create VCN with
+Internet Connectivity.* The default security list already allows SSH (port 22).
+
+## Installation
 
 ```bash
-ssh -i ~/.ssh/id_ed25519 ubuntu@<public-ip>
+go install github.com/mariyzx/capwatch/cmd/capwatch@latest
 ```
 
-## Configuration
+## Usage
 
-Edit the variables at the top of `scripts/oci-criar-vps.sh`:
+```bash
+capwatch run
+```
 
-| Variable | Default | Notes |
+```
+Discovering availability domain, subnet and image...
+Launching VM.Standard.A1.Flex (2 OCPUs, 16 GB) in Abcd:SA-SAOPAULO-1-AD-1, retrying every 1m0s
+21:49:40 attempt 1: out of capacity, retrying in 1m5s
+21:50:46 attempt 2: out of capacity, retrying in 1m6s
+```
+
+When the launch succeeds, the instance OCID is printed to stdout and the
+command exits with `0`. Progress goes to stderr, so the output can be piped.
+
+Getting capacity may take hours or days. Run it inside `tmux` so it survives
+closing the terminal:
+
+```bash
+tmux new-session -d -s capwatch 'capwatch run 2>&1 | tee -a ~/capwatch.log'
+tail -f ~/capwatch.log
+```
+
+### Flags
+
+| Flag | Default | Notes |
 |---|---|---|
-| `OCPUS` | `2` | Always Free allows up to 4 OCPUs in total |
-| `MEMORY_GB` | `16` | Always Free allows up to 24 GB in total |
-| `BOOT_VOLUME_GB` | `50` | Always Free allows up to 200 GB in total |
-| `INTERVALO` | `60` | Seconds between attempts |
-| `COMPARTMENT_ID`, `SUBNET_ID`, `IMAGE_ID`, `AVAILABILITY_DOMAIN` | empty | Discovered automatically when empty |
+| `--ocpus` | `2` | 1–4 (Always Free limit) |
+| `--memory` | `16` | GB, 1–24 (Always Free limit) |
+| `--boot-volume` | `50` | GB, 50–200 |
+| `--name` | `capwatch` | Instance display name |
+| `--ssh-key` | `~/.ssh/id_ed25519.pub` | Public key authorized on the instance |
+| `--compartment` | tenancy | Compartment OCID |
+| `--subnet` | first subnet found | Subnet OCID |
+| `--interval` | `1m` | Wait between attempts, at least `30s` |
+| `--max-backoff` | `10m` | Longest wait when rate limited |
 
 Smaller shapes tend to find capacity sooner.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Instance launched |
+| `1` | Unrecoverable error (authentication, quota, invalid flags...) |
+| `130` | Interrupted with Ctrl+C |
 
 ## How it works
 
 1. Discovers the availability domain, the first subnet and the latest
    Ubuntu 22.04 ARM image in the compartment.
-2. Calls `oci compute instance launch` once per interval.
-3. Classifies the response:
-   - **out of capacity** → waits and retries
-   - **rate limited (429)** → waits three times longer
-   - **timeouts and 5xx** → treated as transient, retries
+2. Calls `LaunchInstance` once per interval, with a small random jitter.
+3. Classifies each failure:
+   - **out of capacity** and **transient** errors (timeouts, 5xx) → retries
+     after the interval
+   - **rate limited** (429) → doubles the wait, up to `--max-backoff`
    - **anything else** → stops and prints the error
+4. Reuses the same retry token after transient failures, so a launch that
+   timed out but succeeded on OCI's side is not duplicated.
 
 ## Stack
 
-- Bash
-- [OCI CLI](https://github.com/oracle/oci-cli)
-- tmux
+- [Go](https://go.dev)
+- [OCI Go SDK](https://github.com/oracle/oci-go-sdk)
+- [Cobra](https://github.com/spf13/cobra) + [Fang](https://github.com/charmbracelet/fang) for the CLI
 
 ## Project layout
 
 ```
-scripts/
-├── setup-oci-wsl.sh   # installs dependencies, configures the OCI CLI, starts the loop
-└── oci-criar-vps.sh   # the retry loop
+cmd/capwatch/        # entrypoint
+internal/
+├── cli/             # cobra commands
+│   └── run/         # capwatch run
+├── hunt/            # retry and backoff policy, independent of OCI
+└── oci/             # OCI SDK adapter: discovery, launch, error translation
+scripts/             # original Bash version
+```
+
+## Development
+
+```bash
+go test -race ./...
+go vet ./...
 ```
 
 ## Security
 
-Never commit `~/.oci/`, `.pem` files, SSH keys or `log.txt` (it contains
+Never commit `~/.oci/`, `.pem` files, SSH keys or log files (they contain
 your tenancy and subnet OCIDs). The `.gitignore` covers these by default.
