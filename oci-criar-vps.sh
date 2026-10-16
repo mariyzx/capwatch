@@ -24,6 +24,9 @@ AVAILABILITY_DOMAIN=""
 
 SHAPE="VM.Standard.A1.Flex"
 
+# A OCI CLI fica em ~/bin; garante que ela está no PATH mesmo dentro do tmux
+export PATH="$HOME/bin:$PATH"
+
 if ! command -v oci >/dev/null 2>&1; then
   echo "OCI CLI não encontrada. Instale em https://docs.oracle.com/iaas/Content/API/SDKDocs/cliinstall.htm" >&2
   exit 1
