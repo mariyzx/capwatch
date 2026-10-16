@@ -22,7 +22,7 @@ fi
 
 echo "==> 1/4 Instalando dependências (vai pedir sua senha do sudo)..."
 sudo apt-get update -y
-sudo apt-get install -y curl python3 tmux openssh-client
+sudo apt-get install -y curl python3 python3-venv tmux openssh-client
 
 echo
 echo "==> 2/4 Instalando a OCI CLI..."
