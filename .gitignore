@@ -1,0 +1,14 @@
+# Credenciais e chaves: nunca versionar
+*.pem
+*.key
+id_*
+.oci/
+.env
+
+# Saída do loop (contém OCIDs da conta)
+log.txt
+*.log
+
+# Backups e lixo do Windows
+*.bak
+*Zone.Identifier
