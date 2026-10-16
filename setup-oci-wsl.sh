@@ -98,10 +98,13 @@ read -r -p "Quer iniciar as tentativas de criar a VPS agora? [S/n] " resp
 resp="${resp:-S}"
 if [[ "$resp" =~ ^[Ss]$ ]]; then
   tmux kill-session -t "$TMUX_SESSION" 2>/dev/null || true
-  tmux new-session -d -s "$TMUX_SESSION" "$WORK_DIR/oci-criar-vps.sh; echo; read -p 'Fim. ENTER pra fechar...'"
+  # Vários argumentos: o tmux executa direto com bash, sem passar pelo shell padrão (ex.: zsh)
+  tmux new-session -d -s "$TMUX_SESSION" bash -c \
+    "'$WORK_DIR/oci-criar-vps.sh' 2>&1 | tee -a '$WORK_DIR/log.txt'; echo; read -p 'Fim. ENTER pra fechar...'"
   echo
   echo "Rodando dentro do tmux (sessão '$TMUX_SESSION')."
   echo "  Ver o andamento:  tmux attach -t $TMUX_SESSION"
+  echo "  Ver o log:        tail -f $WORK_DIR/log.txt"
   echo "  Sair sem parar:   Ctrl+B e depois D"
   echo "  Parar de vez:     tmux kill-session -t $TMUX_SESSION"
 else
