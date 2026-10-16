@@ -1,5 +1,10 @@
 # capwatch
 
+![Go](https://img.shields.io/badge/Go-1.27-00ADD8?logo=go&logoColor=white)
+![Oracle Cloud](https://img.shields.io/badge/Oracle_Cloud-Always_Free-F80000?logo=oracle&logoColor=white)
+![Cobra](https://img.shields.io/badge/CLI-Cobra_%2B_Fang-5A4FCF)
+![ntfy](https://img.shields.io/badge/notifications-ntfy-317F6F)
+
 Keeps trying to launch an Oracle Cloud **Always Free** ARM instance
 (`VM.Standard.A1.Flex`) until the region has capacity.
 
@@ -256,10 +261,17 @@ request within these limits, but it does not check what you already have.
 
 ## Stack
 
-- [Go](https://go.dev)
-- [OCI Go SDK](https://github.com/oracle/oci-go-sdk)
-- [Cobra](https://github.com/spf13/cobra) + [Fang](https://github.com/charmbracelet/fang) for the CLI
-- [Koanf](https://github.com/knadh/koanf) for configuration
+| Technology | Used for |
+|---|---|
+| [Go 1.27](https://go.dev) | Language and standard library (`context`, `net/http`, `time`) |
+| [OCI Go SDK](https://github.com/oracle/oci-go-sdk) | Authentication, discovery and `LaunchInstance` calls |
+| [Cobra](https://github.com/spf13/cobra) | Commands and flags |
+| [Fang](https://github.com/charmbracelet/fang) | Styled help, errors and Ctrl+C handling on top of Cobra |
+| [Koanf](https://github.com/knadh/koanf) | Merging flags, `CAPWATCH_*` variables and the config file |
+| [TOML](https://toml.io) | Config file format |
+| [x/crypto/ssh](https://pkg.go.dev/golang.org/x/crypto/ssh) | Validating that `--ssh-key` is a public key |
+| [ntfy](https://ntfy.sh) | Optional push notification when the instance is launched |
+| `go test`, `httptest`, race detector | Unit tests without real OCI or network calls |
 
 ## Project layout
 
