@@ -235,7 +235,6 @@ internal/
 ├── config/          # flags, environment and config file loading
 ├── hunt/            # retry and backoff policy, independent of OCI
 └── oci/             # OCI SDK adapter: discovery, launch, error translation
-scripts/             # deprecated Bash version, kept for reference
 ```
 
 ## Development
