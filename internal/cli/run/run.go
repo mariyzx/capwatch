@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/mariyzx/capwatch/internal/config"
 	"github.com/mariyzx/capwatch/internal/hunt"
 	"github.com/mariyzx/capwatch/internal/oci"
 )
@@ -24,15 +25,15 @@ const (
 )
 
 type Options struct {
-	OCPUs         float32
-	MemoryGB      float32
-	BootVolumeGB  int64
-	Name          string
-	SSHKeyPath    string
-	CompartmentID string
-	SubnetID      string
-	Interval      time.Duration
-	MaxBackoff    time.Duration
+	OCPUs         float32       `koanf:"ocpus"`
+	MemoryGB      float32       `koanf:"memory"`
+	BootVolumeGB  int64         `koanf:"boot-volume"`
+	Name          string        `koanf:"name"`
+	SSHKeyPath    string        `koanf:"ssh-key"`
+	CompartmentID string        `koanf:"compartment"`
+	SubnetID      string        `koanf:"subnet"`
+	Interval      time.Duration `koanf:"interval"`
+	MaxBackoff    time.Duration `koanf:"max-backoff"`
 }
 
 func NewCmdRun() *cobra.Command {
@@ -44,6 +45,13 @@ func NewCmdRun() *cobra.Command {
 		Short: "Keep trying to launch the instance until it succeeds",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			path, err := config.Path()
+			if err != nil {
+				return err
+			}
+			if err := config.Load(path, cmd.Flags(), &opts); err != nil {
+				return err
+			}
 			if err := opts.validate(); err != nil {
 				return err
 			}
@@ -139,7 +147,7 @@ func readPublicKey(path string) (string, error) {
 		return "", fmt.Errorf("reading ssh public key: %w", err)
 	}
 	if _, _, _, _, err := ssh.ParseAuthorizedKey(content); err != nil {
-		return "", fmt.Errorf("%s is not a public ssh key (did you pass the private key?)", path)
+		return "", fmt.Errorf("invalid --ssh-key: %s is not a public key (did you pass the private key?)", path)
 	}
 	return strings.TrimSpace(string(content)), nil
 }
